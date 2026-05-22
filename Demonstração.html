@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Demonstração Interativa - Trabalho 1 - 8086</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Calibri, sans-serif;
+    background: #f0f4f8;
+    color: #1f2937;
+    padding: 12px;
+    height: 100vh;
+    overflow: hidden;
+  }
+  .container {
+    max-width: 1400px;
+    height: calc(100vh - 24px);
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  header {
+    background: linear-gradient(135deg, #065A82 0%, #1C7293 100%);
+    color: white;
+    padding: 14px 22px;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    flex: 0 0 auto;
+  }
+  header h1 { font-size: clamp(20px, 2.2vw, 26px); margin-bottom: 4px; }
+  header .subtitle { font-size: 13px; opacity: 0.9; }
+
+  /* layout principal */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.1fr;
+    gap: 12px;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .panel {
+    background: white;
+    border-radius: 10px;
+    padding: 12px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    min-height: 0;
+  }
+  .panel h2 {
+    font-size: 16px;
+    color: #065A82;
+    margin-bottom: 8px;
+    border-bottom: 2px solid #f59e0b;
+    padding-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .panel h2 span.badge {
+    background: #f59e0b;
+    color: #21295c;
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-weight: bold;
+  }
+
+  /* Código */
+  .code-area {
+    background: #1f2937;
+    color: #e0f2fe;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 13px;
+    padding: 10px;
+    border-radius: 6px;
+    line-height: 1.45;
+    height: calc(100% - 38px);
+    overflow-y: auto;
+  }
+  .code-line {
+    display: block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    white-space: pre;
+    transition: background-color 0.3s;
+  }
+  .code-line.current {
+    background-color: #f59e0b;
+    color: #1f2937;
+    font-weight: bold;
+  }
+  .code-line.executed { opacity: 0.45; }
+  .code-line .comment { color: #94a3b8; }
+  .code-line .keyword { color: #f59e0b; }
+  .code-line.current .comment,
+  .code-line.current .keyword { color: #1f2937; }
+
+  /* Registradores */
+  .reg-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .reg-box {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 7px 9px;
+    transition: all 0.3s;
+  }
+  .reg-box.changed {
+    background: #fef3c7;
+    border-color: #f59e0b;
+    transform: scale(1.03);
+  }
+  .reg-name {
+    font-size: 11px;
+    color: #6b7280;
+    font-weight: bold;
+    letter-spacing: 1px;
+    margin-bottom: 2px;
+  }
+  .reg-value {
+    font-family: 'Consolas', monospace;
+    font-size: 16px;
+    color: #21295c;
+    font-weight: bold;
+  }
+  .reg-decimal {
+    font-size: 11px;
+    color: #6b7280;
+    font-family: 'Consolas', monospace;
+    margin-top: 1px;
+  }
+
+  /* Flags */
+  .flags-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 6px;
+  }
+  .flag-box {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 6px;
+    text-align: center;
+    transition: all 0.3s;
+  }
+  .flag-box.on {
+    background: #f59e0b;
+    border-color: #f59e0b;
+    color: #1f2937;
+  }
+  .flag-name { font-size: 12px; font-weight: bold; letter-spacing: 1px; }
+  .flag-value { font-size: 18px; font-weight: bold; margin-top: 1px; font-family: 'Consolas', monospace; }
+  .flag-desc { font-size: 10px; opacity: 0.85; margin-top: 2px; }
+
+  /* Memória */
+  .memory-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 4px;
+    font-family: 'Consolas', monospace;
+  }
+  .mem-cell {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    padding: 3px 3px;
+    text-align: center;
+    transition: all 0.3s;
+    position: relative;
+    min-height: 39px;
+  }
+  .mem-cell.pointer {
+    background: #dbeafe;
+    border-color: #065A82;
+    border-width: 2px;
+  }
+  .mem-cell.changed {
+    background: #dcfce7;
+    border-color: #10b981;
+  }
+  .mem-cell.result {
+    background: #fef3c7;
+    border-color: #f59e0b;
+  }
+  .mem-offset {
+    font-size: 8px;
+    color: #6b7280;
+    margin-bottom: 1px;
+  }
+  .mem-hex {
+    font-size: 12px;
+    font-weight: bold;
+    color: #21295c;
+  }
+  .mem-dec {
+    font-size: 9px;
+    color: #6b7280;
+    margin-top: 0;
+  }
+  .mem-label {
+    font-size: 8px;
+    color: #6b7280;
+    font-style: italic;
+    margin-top: 1px;
+  }
+  .mem-cell.pointer::before {
+    content: 'SI →';
+    position: absolute;
+    top: -16px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: #065A82;
+    font-weight: bold;
+    background: white;
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+
+  /* Controles */
+  .controls {
+    background: white;
+    padding: 10px 14px;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    flex: 0 0 auto;
+  }
+  button {
+    padding: 9px 14px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+  }
+  button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  button.primary { background: #065A82; color: white; }
+  button.primary:hover:not(:disabled) { background: #054869; }
+  button.accent { background: #f59e0b; color: #21295c; }
+  button.accent:hover:not(:disabled) { background: #d97706; color: white; }
+  button.secondary { background: #e2e8f0; color: #1f2937; }
+  button.secondary:hover:not(:disabled) { background: #cbd5e1; }
+  button.danger { background: #ef4444; color: white; }
+  button.danger:hover:not(:disabled) { background: #dc2626; }
+
+  .step-info {
+    margin-left: auto;
+    font-size: 14px;
+    color: #6b7280;
+  }
+  .step-info strong { color: #065A82; }
+
+  /* Explicação do passo */
+  .explanation {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border-left: 5px solid #f59e0b;
+    padding: 12px 16px;
+    border-radius: 8px;
+    min-height: 72px;
+    flex: 0 0 auto;
+  }
+  .explanation .step-title {
+    font-size: 16px;
+    font-weight: bold;
+    color: #21295c;
+    margin-bottom: 6px;
+  }
+  .explanation .step-desc {
+    font-size: 14px;
+    color: #1f2937;
+    line-height: 1.35;
+  }
+  .explanation .step-desc code {
+    background: #21295c;
+    color: #fef3c7;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: Consolas, monospace;
+    font-size: 12px;
+  }
+
+  /* Speed control */
+  .speed-control { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .speed-control input { width: 100px; }
+
+  /* footer info */
+  footer {
+    text-align: center;
+    padding: 0;
+    color: #6b7280;
+    font-size: 12px;
+    flex: 0 0 auto;
+    line-height: 1.2;
+    display: none;
+  }
+
+  .state-column {
+    display: grid;
+    grid-template-rows: minmax(165px, 0.9fr) 92px minmax(136px, 0.8fr);
+    gap: 10px;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .state-column .panel { margin-bottom: 0 !important; }
+  .state-column .panel h2 { font-size: 15px; }
+  .state-column .panel { overflow: hidden; }
+
+  .pause-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.42);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 20;
+  }
+  .pause-overlay.show { display: flex; }
+  .pause-box {
+    width: min(760px, 92vw);
+    background: #ffffff;
+    border: 3px solid #f59e0b;
+    border-radius: 10px;
+    box-shadow: 0 22px 70px rgba(0,0,0,0.28);
+    padding: 24px 28px;
+  }
+  .pause-kicker {
+    color: #065A82;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .pause-title {
+    color: #21295c;
+    font-size: clamp(22px, 3vw, 34px);
+    line-height: 1.12;
+    margin-bottom: 12px;
+    font-weight: 800;
+  }
+  .pause-desc {
+    color: #1f2937;
+    font-size: clamp(16px, 1.6vw, 20px);
+    line-height: 1.5;
+  }
+  .pause-desc code {
+    background: #21295c;
+    color: #fef3c7;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: Consolas, monospace;
+    font-size: 0.88em;
+  }
+  .pause-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 20px;
+    color: #6b7280;
+    font-size: 13px;
+  }
+  .pause-actions .hint { max-width: 430px; }
+  .pause-actions > div { display: flex; gap: 8px; flex-shrink: 0; }
+
+  @media (max-width: 900px) {
+    body { padding: 8px; height: 100vh; overflow: hidden; }
+    .container { height: calc(100vh - 16px); min-height: 0; gap: 6px; }
+    header { padding: 8px 12px; border-radius: 8px; }
+    header h1 { font-size: 17px; margin-bottom: 2px; }
+    header .subtitle { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .controls { padding: 7px 8px; gap: 6px; flex-wrap: nowrap; overflow: hidden; }
+    button { padding: 7px 8px; font-size: 11px; white-space: nowrap; }
+    .speed-control { display: none; }
+    .step-info { font-size: 11px; margin-left: auto; white-space: nowrap; }
+    .explanation { min-height: 54px; padding: 8px 10px; }
+    .explanation .step-title { font-size: 13px; margin-bottom: 3px; }
+    .explanation .step-desc { font-size: 11px; line-height: 1.25; }
+    .main-grid { grid-template-columns: 1fr 0.86fr; gap: 6px; }
+    .panel { padding: 8px; border-radius: 8px; }
+    .panel h2 { font-size: 12px; padding-bottom: 5px; margin-bottom: 5px; }
+    .panel h2 span.badge { font-size: 9px; padding: 2px 6px; }
+    .code-area { height: calc(100% - 29px); }
+    .code-area { font-size: 10px; line-height: 1.35; padding: 7px; }
+    .code-line { padding: 1px 5px; }
+    .state-column { grid-template-rows: minmax(130px, 0.9fr) 76px minmax(116px, 0.8fr); gap: 6px; }
+    .reg-grid { grid-template-columns: repeat(2, 1fr); gap: 5px; }
+    .reg-box { padding: 5px 6px; }
+    .reg-name { font-size: 9px; }
+    .reg-value { font-size: 12px; }
+    .reg-decimal { font-size: 8px; }
+    .flags-grid { gap: 5px; margin-top: 3px; }
+    .flag-box { padding: 4px; }
+    .flag-name { font-size: 10px; }
+    .flag-value { font-size: 13px; }
+    .flag-desc { font-size: 8px; }
+    .memory-grid { grid-template-columns: repeat(4, 1fr); gap: 3px; }
+    .mem-cell { min-height: 34px; padding: 2px; }
+    .mem-offset, .mem-label { font-size: 7px; }
+    .mem-hex { font-size: 10px; }
+    .mem-dec { font-size: 8px; }
+    .pause-box { width: min(520px, 94vw); padding: 18px; }
+    .pause-title { font-size: 22px; }
+    .pause-desc { font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>🖥️ Trabalho 1 — Memória Segmentada 8086</h1>
+    <div class="subtitle">Demonstração interativa: vetor [25, 47, 12, 89, 3, 56, 71, 34] → soma, maior e menor</div>
+  </header>
+
+  <div class="controls">
+    <button class="primary" id="btn-reset">⟲ Reiniciar</button>
+    <button class="accent" id="btn-step">▶ Próximo passo</button>
+    <button class="secondary" id="btn-auto">▶ Rodar apresentação</button>
+    <button class="danger" id="btn-stop" disabled>⏸ Pausar</button>
+    <div class="speed-control">
+      <span>Velocidade:</span>
+      <input type="range" id="speed" min="500" max="3500" value="1300" step="100">
+      <span id="speed-value">1300ms</span>
+    </div>
+    <div class="step-info">
+      Passo: <strong id="step-num">0</strong> / <strong id="step-total">?</strong>
+    </div>
+  </div>
+
+  <div class="explanation" id="explanation">
+    <div class="step-title">👋 Clique em "Próximo passo" para começar</div>
+    <div class="step-desc">Esta é uma simulação visual passo a passo do programa em Assembly 8086. A cada passo, você verá os registradores, flags e memória mudando em tempo real, com explicação do que está acontecendo.</div>
+  </div>
+
+  <div class="main-grid">
+
+    <!-- Coluna esquerda: código -->
+    <div class="panel">
+      <h2>📜 Código Assembly <span class="badge">vetor.asm</span></h2>
+      <div class="code-area" id="code-area"></div>
+    </div>
+
+    <!-- Coluna direita: estado -->
+    <div class="state-column">
+      <div class="panel" style="margin-bottom: 20px;">
+        <h2>🧠 Registradores</h2>
+        <div class="reg-grid" id="regs"></div>
+      </div>
+
+      <div class="panel" style="margin-bottom: 20px;">
+        <h2>🚩 Flags</h2>
+        <div class="flags-grid" id="flags"></div>
+      </div>
+
+      <div class="panel">
+        <h2>💾 Memória (segmento de dados)</h2>
+        <div class="memory-grid" id="memory"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    Trabalho 1 — Microprocessador 8086 — Análise e Manipulação de Dados em Memória Segmentada
+  </footer>
+</div>
+
+<div class="pause-overlay" id="pause-overlay" aria-live="polite">
+  <div class="pause-box">
+    <div class="pause-kicker">Pausa para explicar</div>
+    <div class="pause-title" id="pause-title"></div>
+    <div class="pause-desc" id="pause-desc"></div>
+    <div class="pause-actions">
+      <span class="hint" id="pause-hint">A apresentação continua sozinha em alguns segundos. Use essa pausa para comentar em cima do ponto.</span>
+      <div>
+        <button class="secondary" id="btn-pause-overlay">Pausar</button>
+        <button class="accent" id="btn-continue">Continuar agora</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// DEFINIÇÃO DOS PASSOS DA EXECUÇÃO
+// Cada passo: { line, title, desc, action }
+// ============================================================
+
+const VETOR = [25, 47, 12, 89, 3, 56, 71, 34];
+
+// Linhas do código exibido (com sintaxe colorida simples)
+const CODE_LINES = [
+  '<span class="comment">; --- Seção de dados ---</span>',
+  '<span class="keyword">vetor:</span> DB 25, 47, 12, 89, 3, 56, 71, 34   <span class="comment">; 8 bytes que serão percorridos</span>',
+  '<span class="keyword">soma:</span>  DW 0                               <span class="comment">; resultado de 16 bits: pode passar de 255</span>',
+  '<span class="keyword">maior:</span> DB 0                               <span class="comment">; guarda o maior byte encontrado</span>',
+  '<span class="keyword">menor:</span> DB 0                               <span class="comment">; guarda o menor byte encontrado</span>',
+  '',
+  '<span class="comment">; --- Código ---</span>',
+  '<span class="keyword">start:</span>',
+  '    mov si, offset vetor   <span class="comment">; SI aponta para o início do vetor</span>',
+  '    mov cx, 8              <span class="comment">; contador: 8 posições</span>',
+  '    mov ax, 0              <span class="comment">; AX acumula a soma total</span>',
+  '    mov bh, 0              <span class="comment">; BH começa como maior provisório</span>',
+  '    mov dl, 0xFF           <span class="comment">; DL começa como menor provisório (255)</span>',
+  '',
+  '<span class="keyword">laco:</span>',
+  '    mov bl, byte ds[si]    <span class="comment">; busca o elemento atual em DS:SI</span>',
+  '    add al, bl             <span class="comment">; soma o byte na parte baixa de AX</span>',
+  '    adc ah, 0              <span class="comment">; se AL estourar, AH recebe o vai-um</span>',
+  '    cmp bl, bh             <span class="comment">; testa se o atual é maior que BH</span>',
+  '    jbe nao_e_maior        <span class="comment">; se não for maior, pula a atualização</span>',
+  '    mov bh, bl             <span class="comment">; atualiza o maior</span>',
+  '<span class="keyword">nao_e_maior:</span>',
+  '    cmp bl, dl             <span class="comment">; testa se o atual é menor que DL</span>',
+  '    jae nao_e_menor        <span class="comment">; se não for menor, pula a atualização</span>',
+  '    mov dl, bl             <span class="comment">; atualiza o menor</span>',
+  '<span class="keyword">nao_e_menor:</span>',
+  '    inc si                 <span class="comment">; avança para o próximo byte do vetor</span>',
+  '    loop laco              <span class="comment">; CX-- e repete enquanto CX != 0</span>',
+  '',
+  '<span class="comment">; --- Grava resultados ---</span>',
+  '    mov word soma, ax      <span class="comment">; grava a soma em little-endian</span>',
+  '    mov byte maior, bh     <span class="comment">; grava o maior valor</span>',
+  '    mov byte menor, dl     <span class="comment">; grava o menor valor</span>',
+  '    hlt                    <span class="comment">; encerra o programa</span>',
+];
+
+// Construção dos passos
+const steps = [];
+
+// --- Passo 0: estado inicial ---
+steps.push({
+  line: 1,
+  title: '🚀 Estado inicial',
+  desc: 'O programa foi compilado. O vetor já está carregado na memória nos offsets 0–7. As posições SOMA, MAIOR e MENOR (offsets 8–11) estão zeradas. Todos os registradores também estão zerados.',
+  changes: {}
+});
+
+// --- Inicializações ---
+steps.push({
+  line: 8,
+  title: 'mov si, offset vetor',
+  desc: 'SI recebe o offset do vetor. Como o vetor foi declarado primeiro, esse offset é <code>0</code>. Agora <code>DS:[SI]</code> aponta para o primeiro elemento.',
+  changes: { SI: 0 }
+});
+steps.push({
+  line: 9,
+  title: 'mov cx, 8',
+  desc: 'CX recebe 8, que é o tamanho do vetor. É o contador do laço — a instrução <code>LOOP</code> vai decrementar CX a cada volta.',
+  changes: { CX: 8 }
+});
+steps.push({
+  line: 10,
+  title: 'mov ax, 0',
+  desc: 'AX = 0. Este é o acumulador da SOMA. Como a soma pode passar de 255, usamos os 16 bits inteiros (AH = alto, AL = baixo).',
+  changes: { AX: 0 }
+});
+steps.push({
+  line: 11,
+  title: 'mov bh, 0',
+  desc: 'BH = 0 será nosso "maior provisório". Começamos em 0 porque qualquer valor do vetor (0–255) será ≥ 0, então o primeiro elemento será imediatamente adotado como maior.',
+  changes: { BH: 0 }
+});
+steps.push({
+  line: 12,
+  title: 'mov dl, 0xFF',
+  desc: 'DL = 255 (0xFF) será nosso "menor provisório". O truque é o oposto: qualquer valor do vetor será ≤ 255, então o primeiro elemento já se torna o menor.',
+  changes: { DL: 0xFF }
+});
+
+// --- Laço (8 iterações) ---
+let acc = 0;
+let bh = 0;
+let dl = 0xFF;
+let cx = 8;
+let si = 0;
+
+for (let i = 0; i < 8; i++) {
+  const bl = VETOR[i];
+
+  // mov bl, byte ds[si]
+  steps.push({
+    line: 15,
+    title: `Iteração ${i+1}: mov bl, byte ds[si]`,
+    desc: `Lemos o byte na posição apontada por SI. <code>SI = ${si}</code>, então BL = <code>${bl}</code> (<code>0x${bl.toString(16).padStart(2,'0').toUpperCase()}</code>). Esse é o acesso SEGMENTADO: o endereço físico é <code>(DS × 16) + SI</code>.`,
+    changes: { BL: bl, _pointer: si }
+  });
+
+  // add al, bl + adc ah, 0
+  const oldAcc = acc;
+  acc += bl;
+  const carry = oldAcc % 256 + bl > 255 ? 1 : 0;
+  let descSoma = `Somamos BL (${bl}) ao AL. Novo AX = <code>${acc}</code> (<code>0x${acc.toString(16).padStart(4,'0').toUpperCase()}</code>).`;
+  if (carry) {
+    descSoma += ' <strong>⚠️ AL estourou 255 — Carry Flag liga!</strong> O <code>ADC AH, 0</code> propaga esse vai-um para AH, mantendo a soma correta em 16 bits.';
+  } else {
+    descSoma += ' Sem estouro, CF = 0.';
+  }
+  steps.push({
+    line: carry ? 17 : 16,
+    title: `Iteração ${i+1}: add al, bl / adc ah, 0`,
+    desc: descSoma,
+    changes: { AX: acc, _flag_CF: carry }
+  });
+
+  // cmp + jbe (maior)
+  const oldBh = bh;
+  const wasMaior = bl > bh;
+  if (wasMaior) {
+    bh = bl;
+    steps.push({
+      line: 20,
+      title: `Iteração ${i+1}: novo MAIOR encontrado!`,
+      desc: `<code>BL (${bl}) > BH (${oldBh})</code>, então atualizamos BH = ${bl}. (CMP fez BL − BH, JBE não saltou, MOV executou.)`,
+      changes: { BH: bh, _flag_CF: 0, _flag_ZF: 0 }
+    });
+  } else {
+    const cf = bl < bh ? 1 : 0;
+    const zf = bl === bh ? 1 : 0;
+    steps.push({
+      line: 19,
+      title: `Iteração ${i+1}: BL (${bl}) ≤ BH (${bh})`,
+      desc: `Comparação <code>CMP BL, BH</code> deu CF=${cf}, ZF=${zf}. <code>JBE</code> saltou — NÃO atualizamos o maior.`,
+      changes: { _flag_CF: cf, _flag_ZF: zf }
+    });
+  }
+
+  // cmp + jae (menor)
+  const oldDl = dl;
+  const wasMenor = bl < dl;
+  if (wasMenor) {
+    dl = bl;
+    steps.push({
+      line: 24,
+      title: `Iteração ${i+1}: novo MENOR encontrado!`,
+      desc: `<code>BL (${bl}) < DL (${oldDl})</code>, então atualizamos DL = ${bl}. (CMP fez BL − DL com CF=1, JAE não saltou.)`,
+      changes: { DL: dl, _flag_CF: 1, _flag_ZF: 0 }
+    });
+  } else {
+    const cf = bl < dl ? 1 : 0;
+    const zf = bl === dl ? 1 : 0;
+    steps.push({
+      line: 23,
+      title: `Iteração ${i+1}: BL (${bl}) ≥ DL (${dl})`,
+      desc: `Comparação <code>CMP BL, DL</code> deu CF=${cf}, ZF=${zf}. <code>JAE</code> saltou — NÃO atualizamos o menor.`,
+      changes: { _flag_CF: cf, _flag_ZF: zf }
+    });
+  }
+
+  // inc si + loop
+  si += 1;
+  cx -= 1;
+  steps.push({
+    line: 27,
+    title: `Iteração ${i+1}: inc si / loop laco`,
+    desc: `SI avança para ${si}. CX vai de ${cx+1} para ${cx}. ${cx === 0 ? '<strong>CX chegou a 0 — ZF liga e o laço termina!</strong>' : `Como CX = ${cx} ≠ 0, voltamos ao topo do laço.`}`,
+    changes: { SI: si, CX: cx, _flag_ZF: cx === 0 ? 1 : 0 }
+  });
+}
+
+// --- Gravação dos resultados na memória ---
+steps.push({
+  line: 30,
+  title: 'mov word soma, ax',
+  desc: `Gravamos AX (${acc} = <code>0x${acc.toString(16).padStart(4,'0').toUpperCase()}</code>) na variável SOMA. Como é uma palavra (16 bits), ocupa 2 bytes na memória: byte baixo em offset 8, byte alto em offset 9 (little-endian).`,
+  changes: { _mem_soma: acc }
+});
+steps.push({
+  line: 31,
+  title: 'mov byte maior, bh',
+  desc: `Gravamos BH (${bh}) na variável MAIOR (offset 10).`,
+  changes: { _mem_maior: bh }
+});
+steps.push({
+  line: 32,
+  title: 'mov byte menor, dl',
+  desc: `Gravamos DL (${dl}) na variável MENOR (offset 11).`,
+  changes: { _mem_menor: dl }
+});
+steps.push({
+  line: 33,
+  title: '🏁 hlt — fim do programa',
+  desc: `Programa encerrado! Resultados finais gravados na memória: <strong>SOMA = ${acc}, MAIOR = ${bh}, MENOR = ${dl}</strong>. Verificação: 25+47+12+89+3+56+71+34 = ${acc}. ✓`,
+  changes: {}
+});
+
+// ============================================================
+// ESTADO E RENDERIZAÇÃO
+// ============================================================
+
+const state = {
+  step: 0,
+  regs: { AX: 0, BH: 0, BL: 0, CX: 0, DL: 0, DH: 0, SI: 0, DI: 0 },
+  flags: { CF: 0, ZF: 0, SF: 0, OF: 0, PF: 0, AF: 0 },
+  memory: new Array(12).fill(0),
+  pointer: -1,
+  changed: { regs: new Set(), mem: new Set() },
+  resultsWritten: new Set(),
+};
+
+function initMemory() {
+  VETOR.forEach((v, i) => state.memory[i] = v);
+  state.memory[8] = 0; state.memory[9] = 0;
+  state.memory[10] = 0; state.memory[11] = 0;
+}
+initMemory();
+
+function applyStep(stepIdx) {
+  // Reseta estado e aplica todos os passos do 0 até stepIdx
+  state.regs = { AX: 0, BH: 0, BL: 0, CX: 0, DL: 0, DH: 0, SI: 0, DI: 0 };
+  state.flags = { CF: 0, ZF: 0, SF: 0, OF: 0, PF: 0, AF: 0 };
+  state.memory = new Array(12).fill(0);
+  initMemory();
+  state.pointer = -1;
+  state.resultsWritten.clear();
+
+  // Determinar últimas mudanças (do step atual) para destacar
+  const lastChanges = stepIdx > 0 ? (steps[stepIdx].changes || {}) : {};
+  state.changed.regs = new Set();
+  state.changed.mem = new Set();
+
+  for (let i = 1; i <= stepIdx; i++) {
+    const ch = steps[i].changes || {};
+    for (const key in ch) {
+      if (key === '_pointer') {
+        state.pointer = ch[key];
+      } else if (key === '_flag_CF') {
+        state.flags.CF = ch[key];
+      } else if (key === '_flag_ZF') {
+        state.flags.ZF = ch[key];
+      } else if (key === '_mem_soma') {
+        state.memory[8] = ch[key] & 0xFF;
+        state.memory[9] = (ch[key] >> 8) & 0xFF;
+        state.resultsWritten.add(8); state.resultsWritten.add(9);
+      } else if (key === '_mem_maior') {
+        state.memory[10] = ch[key];
+        state.resultsWritten.add(10);
+      } else if (key === '_mem_menor') {
+        state.memory[11] = ch[key];
+        state.resultsWritten.add(11);
+      } else if (key === 'AX') {
+        state.regs.AX = ch[key];
+      } else if (key === 'BL') {
+        state.regs.BL = ch[key];
+      } else if (key === 'BH') {
+        state.regs.BH = ch[key];
+      } else if (key === 'CX') {
+        state.regs.CX = ch[key];
+      } else if (key === 'DL') {
+        state.regs.DL = ch[key];
+      } else if (key === 'SI') {
+        state.regs.SI = ch[key];
+      }
+    }
+  }
+
+  // Marca apenas as mudanças DO ÚLTIMO passo para destaque visual
+  for (const key in lastChanges) {
+    if (['AX','BL','BH','CX','DL','SI'].includes(key)) {
+      state.changed.regs.add(key);
+    } else if (key === '_mem_soma') {
+      state.changed.mem.add(8); state.changed.mem.add(9);
+    } else if (key === '_mem_maior') {
+      state.changed.mem.add(10);
+    } else if (key === '_mem_menor') {
+      state.changed.mem.add(11);
+    }
+  }
+
+  // Esconde o ponteiro visual SI quando saímos do laço
+  if (stepIdx > 0 && steps[stepIdx].line >= 30) {
+    state.pointer = -1;
+  }
+}
+
+function hex(n, digits) {
+  return n.toString(16).padStart(digits, '0').toUpperCase();
+}
+
+function getTalkTrack(stepIdx) {
+  if (stepIdx <= 0) {
+    return 'Contexto: o programa percorre 8 bytes do vetor, acumula a soma em AX e mantém maior em BH e menor em DL.';
+  }
+
+  const s = steps[stepIdx];
+  if (s.title.includes('mov si')) {
+    return 'Fale do endereço segmentado: DS define o segmento e SI é o deslocamento. Aqui SI começa em 0 porque o vetor é a primeira variável.';
+  }
+  if (s.title.includes('mov cx')) {
+    return 'CX é o contador do laço. A instrução <code>LOOP</code> vai diminuir CX sozinha e decidir se volta para o início.';
+  }
+  if (s.title.includes('mov ax')) {
+    return 'AX será a soma. Vale destacar que AX tem 16 bits, então ele aguenta uma soma maior que um único byte.';
+  }
+  if (s.title.includes('mov dl')) {
+    return 'DL começa em 255 para garantir que qualquer valor real do vetor possa virar o primeiro menor.';
+  }
+  if (s.title.includes('mov bl, byte')) {
+    return 'Este é o coração da memória: <code>BL</code> recebe o byte apontado por <code>DS:[SI]</code>. Depois disso, o mesmo valor é usado para soma, maior e menor.';
+  }
+  if (s.title.includes('add al')) {
+    return 'Na soma, AL recebe o novo byte. Se passar de 255, o carry aparece e <code>ADC AH, 0</code> completa a soma em 16 bits.';
+  }
+  if (s.title.includes('novo MAIOR')) {
+    return 'Aqui dá para explicar o papel do <code>CMP</code>: ele não guarda resultado, só altera flags. O salto decide se BH será atualizado.';
+  }
+  if (s.title.includes('novo MENOR')) {
+    return 'A lógica do menor é parecida com a do maior, mas invertida: se BL for menor que DL, DL passa a guardar esse novo valor.';
+  }
+  if (s.title.includes('inc si')) {
+    return 'No fim da volta, SI anda para o próximo byte e CX diminui. Esse par mostra bem como o vetor é percorrido.';
+  }
+  if (s.title.includes('mov word soma')) {
+    return 'Agora o processamento terminou: AX é gravado em memória em dois bytes, primeiro o baixo e depois o alto, por causa do little-endian.';
+  }
+  if (s.title.includes('mov byte maior')) {
+    return 'BH virou o resultado final do maior valor e agora sai do registrador para a variável MAIOR.';
+  }
+  if (s.title.includes('mov byte menor')) {
+    return 'DL virou o resultado final do menor valor e agora sai do registrador para a variável MENOR.';
+  }
+  if (s.title.includes('hlt')) {
+    return 'Fechamento: mostre os três resultados finais e conecte com o objetivo do trabalho: manipular dados em memória segmentada.';
+  }
+  return 'Comente o efeito visual: linha destacada é a instrução atual; amarelo nos registradores mostra o que mudou; memória destaca ponteiro e resultados.';
+}
+
+function render() {
+  // Código
+  const codeArea = document.getElementById('code-area');
+  const currentLine = state.step > 0 ? steps[state.step].line : -1;
+  codeArea.innerHTML = CODE_LINES.map((line, i) => {
+    let cls = 'code-line';
+    if (i === currentLine) cls += ' current';
+    else if (state.step > 0 && i < currentLine && line.trim() && !line.includes('---')) cls += ' executed';
+    return `<span class="${cls}">${line || ' '}</span>`;
+  }).join('');
+
+  // Auto-scroll para a linha atual
+  const currentEl = codeArea.querySelector('.current');
+  if (currentEl) currentEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+  // Registradores
+  const ax = state.regs.AX;
+  const ah = (ax >> 8) & 0xFF, al = ax & 0xFF;
+  const bh = state.regs.BH, bl = state.regs.BL;
+  const regs = [
+    { name: 'AX', hex: hex(ax, 4), dec: `AH=${hex(ah,2)} (${ah}) | AL=${hex(al,2)} (${al})`, changed: state.changed.regs.has('AX') },
+    { name: 'BX', hex: hex((bh << 8) | bl, 4), dec: `BH=${hex(bh,2)} (${bh}) | BL=${hex(bl,2)} (${bl})`, changed: state.changed.regs.has('BH') || state.changed.regs.has('BL') },
+    { name: 'CX', hex: hex(state.regs.CX, 4), dec: `${state.regs.CX} (contador do laço)`, changed: state.changed.regs.has('CX') },
+    { name: 'DX', hex: hex(state.regs.DL, 4), dec: `DL=${hex(state.regs.DL,2)} (${state.regs.DL}) — menor`, changed: state.changed.regs.has('DL') },
+    { name: 'SI', hex: hex(state.regs.SI, 4), dec: `aponta para offset ${state.regs.SI}`, changed: state.changed.regs.has('SI') },
+    { name: 'DI', hex: '0000', dec: 'não usado', changed: false },
+  ];
+  document.getElementById('regs').innerHTML = regs.map(r => `
+    <div class="reg-box ${r.changed ? 'changed' : ''}">
+      <div class="reg-name">${r.name}</div>
+      <div class="reg-value">${r.hex}h</div>
+      <div class="reg-decimal">${r.dec}</div>
+    </div>
+  `).join('');
+
+  // Flags
+  const flagDefs = [
+    { name: 'CF', desc: 'Carry', val: state.flags.CF },
+    { name: 'ZF', desc: 'Zero', val: state.flags.ZF },
+    { name: 'SF', desc: 'Sign', val: state.flags.SF },
+  ];
+  document.getElementById('flags').innerHTML = flagDefs.map(f => `
+    <div class="flag-box ${f.val ? 'on' : ''}">
+      <div class="flag-name">${f.name}</div>
+      <div class="flag-value">${f.val}</div>
+      <div class="flag-desc">${f.desc}</div>
+    </div>
+  `).join('');
+
+  // Memória
+  const memLabels = ['V[0]','V[1]','V[2]','V[3]','V[4]','V[5]','V[6]','V[7]','SOMA_L','SOMA_H','MAIOR','MENOR'];
+  document.getElementById('memory').innerHTML = state.memory.map((v, i) => {
+    let cls = 'mem-cell';
+    if (state.pointer === i) cls += ' pointer';
+    if (state.changed.mem.has(i)) cls += ' changed';
+    else if (state.resultsWritten.has(i)) cls += ' result';
+    return `
+      <div class="${cls}">
+        <div class="mem-offset">offset ${hex(i,4)}h</div>
+        <div class="mem-hex">${hex(v,2)}h</div>
+        <div class="mem-dec">= ${v}</div>
+        <div class="mem-label">${memLabels[i]}</div>
+      </div>
+    `;
+  }).join('');
+
+  // Explicação
+  const exp = document.getElementById('explanation');
+  if (state.step >= 0 && state.step < steps.length) {
+    const s = steps[state.step];
+    exp.innerHTML = `
+      <div class="step-title">${s.title}</div>
+      <div class="step-desc">${s.desc}</div>
+    `;
+  }
+
+  // Contador
+  document.getElementById('step-num').textContent = state.step;
+  document.getElementById('step-total').textContent = steps.length - 1;
+  document.getElementById('btn-step').disabled = state.step >= steps.length - 1;
+}
+
+// Controles
+let autoTimer = null;
+let pauseTimer = null;
+
+function shouldPauseForStep(stepIdx) {
+  if (stepIdx <= 0) return false;
+  const s = steps[stepIdx];
+  return (
+    s.title.includes('mov si') ||
+    s.title.includes('Iteração 1: mov bl, byte') ||
+    s.title.includes('Iteração 1: novo MAIOR') ||
+    s.title.includes('Iteração 5: novo MENOR') ||
+    s.desc.includes('Carry Flag') ||
+    s.title.includes('Iteração 8: inc si') ||
+    s.title.includes('mov word soma') ||
+    s.title.includes('hlt')
+  );
+}
+
+function pauseDurationForStep(stepIdx) {
+  const descLength = (steps[stepIdx].desc || '').replace(/<[^>]+>/g, '').length;
+  return Math.min(13000, Math.max(7500, descLength * 36));
+}
+
+function hidePauseBox() {
+  if (pauseTimer) clearTimeout(pauseTimer);
+  pauseTimer = null;
+  document.getElementById('pause-overlay').classList.remove('show');
+}
+
+function showPauseBox(stepIdx, onDone) {
+  const s = steps[stepIdx];
+  hidePauseBox();
+  document.getElementById('pause-title').innerHTML = s.title;
+  document.getElementById('pause-desc').innerHTML = s.desc;
+  document.getElementById('pause-hint').textContent = `Continua sozinho em ${(pauseDurationForStep(stepIdx) / 1000).toFixed(1).replace('.', ',')}s. Você também pode clicar em "Continuar agora".`;
+  document.getElementById('pause-overlay').classList.add('show');
+  pauseTimer = setTimeout(() => {
+    hidePauseBox();
+    onDone();
+  }, pauseDurationForStep(stepIdx));
+}
+
+function finishAuto() {
+  autoTimer = null;
+  hidePauseBox();
+  document.getElementById('btn-stop').disabled = true;
+  document.getElementById('btn-auto').disabled = false;
+}
+
+function stopAuto() {
+  if (autoTimer) clearTimeout(autoTimer);
+  autoTimer = null;
+  hidePauseBox();
+  document.getElementById('btn-stop').disabled = true;
+  document.getElementById('btn-auto').disabled = false;
+}
+
+function scheduleAutoTick(delay) {
+  autoTimer = setTimeout(runAutoTick, delay);
+}
+
+function runAutoTick() {
+  autoTimer = null;
+  if (state.step >= steps.length - 1) {
+    finishAuto();
+    return;
+  }
+
+  state.step++;
+  applyStep(state.step);
+  render();
+
+  if (shouldPauseForStep(state.step)) {
+    showPauseBox(state.step, () => {
+      if (document.getElementById('btn-auto').disabled) {
+        scheduleAutoTick(parseInt(document.getElementById('speed').value));
+      }
+    });
+  } else {
+    scheduleAutoTick(parseInt(document.getElementById('speed').value));
+  }
+}
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  stopAuto();
+  state.step = 0;
+  applyStep(0);
+  render();
+});
+
+document.getElementById('btn-step').addEventListener('click', () => {
+  stopAuto();
+  if (state.step < steps.length - 1) {
+    state.step++;
+    applyStep(state.step);
+    render();
+  }
+});
+
+document.getElementById('btn-auto').addEventListener('click', () => {
+  if (autoTimer || pauseTimer) return;
+  document.getElementById('btn-stop').disabled = false;
+  document.getElementById('btn-auto').disabled = true;
+  runAutoTick();
+});
+
+document.getElementById('btn-stop').addEventListener('click', stopAuto);
+document.getElementById('btn-pause-overlay').addEventListener('click', stopAuto);
+
+document.getElementById('btn-continue').addEventListener('click', () => {
+  if (!pauseTimer) return;
+  hidePauseBox();
+  if (document.getElementById('btn-auto').disabled) {
+    scheduleAutoTick(parseInt(document.getElementById('speed').value));
+  }
+});
+
+document.getElementById('speed').addEventListener('input', (e) => {
+  document.getElementById('speed-value').textContent = e.target.value + 'ms';
+});
+
+// Inicializa
+applyStep(0);
+render();
+</script>
+</body>
+</html>

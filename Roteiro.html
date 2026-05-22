@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Roteiro do Apresentador - 8086</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Calibri, sans-serif;
+    background: #eef2f7;
+    color: #1f2937;
+    padding: 16px;
+  }
+  .shell { max-width: 1280px; margin: 0 auto; }
+  header {
+    background: #0f5f7f;
+    color: white;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 12px;
+  }
+  h1 { font-size: 24px; margin-bottom: 4px; }
+  .sub { font-size: 13px; opacity: 0.92; }
+  .tools {
+    display: grid;
+    grid-template-columns: 160px 1fr 180px;
+    gap: 10px;
+    background: white;
+    padding: 12px;
+    border-radius: 10px;
+    margin-bottom: 12px;
+    box-shadow: 0 1px 4px rgba(15,23,42,0.08);
+  }
+  input, select {
+    width: 100%;
+    border: 1px solid #cbd5e1;
+    border-radius: 7px;
+    padding: 9px 10px;
+    font: inherit;
+    background: #f8fafc;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 12px;
+  }
+  .card {
+    background: white;
+    border-radius: 10px;
+    border: 1px solid #dbe3ee;
+    box-shadow: 0 1px 4px rgba(15,23,42,0.06);
+    overflow: hidden;
+  }
+  .card.important { border-color: #f59e0b; box-shadow: 0 0 0 2px rgba(245,158,11,0.18); }
+  .top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 10px 12px;
+  }
+  .id {
+    background: #21295c;
+    color: white;
+    font-family: Consolas, monospace;
+    font-weight: 800;
+    border-radius: 6px;
+    padding: 4px 7px;
+    min-width: 42px;
+    text-align: center;
+  }
+  .tag {
+    background: #fef3c7;
+    color: #7c2d12;
+    border: 1px solid #fbbf24;
+    border-radius: 999px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 800;
+    margin-left: auto;
+  }
+  .title { font-weight: 800; color: #065A82; min-width: 0; }
+  .body { padding: 11px 12px 12px; display: grid; gap: 8px; }
+  .block {
+    border-left: 4px solid #cbd5e1;
+    background: #f8fafc;
+    border-radius: 6px;
+    padding: 8px 9px;
+  }
+  .block.say { border-left-color: #0f5f7f; background: #eef6fb; }
+  .block.ask { border-left-color: #f59e0b; background: #fff7ed; }
+  .label {
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    margin-bottom: 3px;
+  }
+  .text { font-size: 13px; line-height: 1.42; }
+  .code {
+    font-family: Consolas, monospace;
+    color: #111827;
+    font-weight: 800;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  code {
+    background: #21295c;
+    color: #fef3c7;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: Consolas, monospace;
+    font-size: 0.92em;
+  }
+  .empty {
+    background: white;
+    padding: 18px;
+    border-radius: 10px;
+    color: #64748b;
+    display: none;
+  }
+  @media (max-width: 760px) {
+    body { padding: 10px; }
+    .tools { grid-template-columns: 1fr; }
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <h1>Roteiro do Apresentador - 8086</h1>
+    <div class="sub">Pagina privada para acompanhar a demonstracao publica. Use o numero do passo da simulacao: P00, P01, P02...</div>
+  </header>
+
+  <div class="tools">
+    <input id="stepFilter" placeholder="Ir para P07 ou 7">
+    <input id="search" placeholder="Buscar: carry, SI, maior, menor, soma...">
+    <select id="mode">
+      <option value="all">Todos os passos</option>
+      <option value="important">So momentos importantes</option>
+    </select>
+  </div>
+
+  <div class="grid" id="cards"></div>
+  <div class="empty" id="empty">Nada encontrado para esse filtro.</div>
+</div>
+
+<script>
+const VETOR = [25, 47, 12, 89, 3, 56, 71, 34];
+const code = {
+  init: 'Estado inicial',
+  si: 'mov si, offset vetor',
+  cx: 'mov cx, 8',
+  ax: 'mov ax, 0',
+  bh: 'mov bh, 0',
+  dl: 'mov dl, 0xFF',
+  read: 'mov bl, byte ds[si]',
+  sum: 'add al, bl / adc ah, 0',
+  cmpMaior: 'cmp bl, bh / jbe nao_e_maior / mov bh, bl',
+  cmpMenor: 'cmp bl, dl / jae nao_e_menor / mov dl, bl',
+  loop: 'inc si / loop laco',
+  saveSoma: 'mov word soma, ax',
+  saveMaior: 'mov byte maior, bh',
+  saveMenor: 'mov byte menor, dl',
+  hlt: 'hlt'
+};
+
+const steps = [];
+function add(title, codeLine, changed, say, ask, important=false) {
+  const n = steps.length;
+  steps.push({ id: `P${String(n).padStart(2, '0')}`, n, title, codeLine, changed, say, ask, important });
+}
+
+add(
+  'Estado inicial',
+  code.init,
+  'Vetor carregado na memoria. Registradores e resultados ainda zerados.',
+  'Comece: "O objetivo e percorrer um vetor de 8 bytes e calcular soma, maior e menor. O foco do trabalho e mostrar memoria segmentada, registradores, flags e laco."',
+  'Se perguntarem o objetivo: calcular soma, maior e menor usando acesso a memoria em DS:SI.',
+  true
+);
+add(
+  'Prepara ponteiro do vetor',
+  code.si,
+  'SI = 0',
+  'Fale: "Aqui eu preparo o ponteiro. No 8086, DS e o segmento de dados e SI e o deslocamento dentro desse segmento. Como vetor foi declarado primeiro, o offset comeca em zero."',
+  'SI guarda o offset. Endereco fisico no 8086: segmento vezes 16 mais offset.',
+  true
+);
+add(
+  'Define contador',
+  code.cx,
+  'CX = 8',
+  'Fale: "CX recebe 8 porque o vetor tem 8 elementos. A instrucao LOOP vai diminuir CX automaticamente em cada volta."',
+  'CX controla quantas repeticoes faltam no laco.'
+);
+add(
+  'Zera acumulador da soma',
+  code.ax,
+  'AX = 0',
+  'Fale: "AX sera o acumulador da soma. Uso AX inteiro, com AH e AL, porque a soma de varios bytes pode passar de 255."',
+  'AX tem 16 bits. AL e a parte baixa; AH e a parte alta.'
+);
+add(
+  'Inicializa maior',
+  code.bh,
+  'BH = 0',
+  'Fale: "BH guarda o maior encontrado ate agora. Comecar em zero funciona porque os valores sao bytes sem sinal."',
+  'BH fica dentro de BX e foi escolhido para guardar o maior provisoriamente.'
+);
+add(
+  'Inicializa menor',
+  code.dl,
+  'DL = 255',
+  'Fale: "DL comeca em FFh, que e 255. Assim qualquer valor real do vetor ja pode virar o primeiro menor."',
+  'O menor comeca alto para facilitar a primeira comparacao.',
+  true
+);
+
+let acc = 0, bh = 0, dl = 0xFF, cx = 8, si = 0;
+for (let i = 0; i < VETOR.length; i++) {
+  const bl = VETOR[i];
+  add(
+    `Iteracao ${i + 1}: le vetor[${i}]`,
+    code.read,
+    `BL = ${bl}; ponteiro SI aponta para offset ${si}`,
+    `Fale: "Agora o programa busca o elemento atual em <code>DS:[SI]</code>. Esse valor vai para BL. Nesta volta, BL recebe ${bl}, que e o vetor[${i}]."`,
+    'BL e temporario: ele segura o elemento atual para ser usado na soma e nas comparacoes.',
+    i === 0
+  );
+
+  const oldAcc = acc;
+  acc += bl;
+  const carry = oldAcc % 256 + bl > 255;
+  add(
+    `Iteracao ${i + 1}: soma o valor atual`,
+    code.sum,
+    `AX = ${acc}${carry ? '; CF = 1' : '; CF = 0'}`,
+    carry
+      ? 'Fale: "Aqui aparece um ponto importante: AL passou de 255, entao a Carry Flag liga. O <code>ADC AH, 0</code> usa esse carry para completar a soma em 16 bits."'
+      : `Fale: "Somamos BL no acumulador. A soma parcial agora e ${acc}. Como nao estourou 255 nesta operacao, o carry fica zero."`,
+    carry ? 'ADC soma tambem o carry. Por isso ele corrige AH quando AL estoura.' : 'ADD altera flags, mas aqui o ponto principal e atualizar a soma parcial.',
+    carry
+  );
+
+  const oldBh = bh;
+  const newMaior = bl > bh;
+  if (newMaior) bh = bl;
+  add(
+    `Iteracao ${i + 1}: testa maior`,
+    code.cmpMaior,
+    newMaior ? `Novo maior: BH ${oldBh} -> ${bh}` : `BH continua ${bh}`,
+    newMaior
+      ? `Fale: "O <code>CMP BL, BH</code> compara o valor atual com o maior guardado. Como ${bl} e maior que ${oldBh}, BH recebe ${bl}."`
+      : `Fale: "O valor atual ${bl} nao passa o maior atual ${bh}. Entao o salto evita atualizar BH."`,
+    'CMP nao guarda resultado; ele altera flags. O salto decide se executa ou pula o MOV.',
+    i === 0 || newMaior
+  );
+
+  const oldDl = dl;
+  const newMenor = bl < dl;
+  if (newMenor) dl = bl;
+  add(
+    `Iteracao ${i + 1}: testa menor`,
+    code.cmpMenor,
+    newMenor ? `Novo menor: DL ${oldDl} -> ${dl}` : `DL continua ${dl}`,
+    newMenor
+      ? `Fale: "Agora a comparacao e para o menor. Como ${bl} e menor que ${oldDl}, DL recebe ${bl}."`
+      : `Fale: "O valor atual ${bl} nao e menor que ${dl}. O salto acontece e DL permanece igual."`,
+    'DL guarda o menor provisoriamente durante todo o laco.',
+    bl === 3
+  );
+
+  si += 1;
+  cx -= 1;
+  add(
+    `Iteracao ${i + 1}: avanca laco`,
+    code.loop,
+    `SI = ${si}; CX = ${cx}`,
+    cx === 0
+      ? 'Fale: "Agora CX chegou a zero. Isso significa que todas as 8 posicoes foram processadas e o laco termina."'
+      : `Fale: "No fim da volta, SI avanca para o proximo byte e LOOP decrementa CX. Como CX ainda e ${cx}, o programa volta para o rotulo laco."`,
+    'INC SI anda no vetor; LOOP diminui CX e volta enquanto CX nao for zero.',
+    cx === 0
+  );
+}
+
+add(
+  'Grava soma na memoria',
+  code.saveSoma,
+  `SOMA = ${acc}; bytes: ${acc & 0xFF} e ${(acc >> 8) & 0xFF}`,
+  'Fale: "O processamento acabou. Agora AX, que guarda a soma, e salvo na variavel soma. Como e uma word, ocupa dois bytes. No 8086 fica em little-endian: byte baixo primeiro."',
+  'Word ocupa dois bytes; little-endian grava primeiro o byte menos significativo.',
+  true
+);
+add(
+  'Grava maior na memoria',
+  code.saveMaior,
+  `MAIOR = ${bh}`,
+  `Fale: "BH ficou guardando o maior durante o laco. Agora esse resultado e gravado na variavel maior. O maior final e ${bh}."`,
+  'BH era o registrador usado para o maior provisório.',
+  true
+);
+add(
+  'Grava menor na memoria',
+  code.saveMenor,
+  `MENOR = ${dl}`,
+  `Fale: "DL ficou guardando o menor durante o laco. Agora esse resultado e gravado na variavel menor. O menor final e ${dl}."`,
+  'DL era o registrador usado para o menor provisório.',
+  true
+);
+add(
+  'Fim do programa',
+  code.hlt,
+  `Resultado final: soma ${acc}, maior ${bh}, menor ${dl}`,
+  `Feche: "O programa terminou com soma ${acc}, maior ${bh} e menor ${dl}. Entao a demonstracao mostrou leitura em memoria segmentada, uso de registradores, flags, laco e gravacao de resultados."`,
+  `Resultados: soma ${acc}, maior ${bh}, menor ${dl}.`,
+  true
+);
+
+function render() {
+  const idRaw = document.getElementById('stepFilter').value.trim().toUpperCase();
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  const mode = document.getElementById('mode').value;
+  const id = idRaw ? `P${String(parseInt(idRaw.replace('P',''), 10)).padStart(2, '0')}` : '';
+
+  const visible = steps.filter(s => {
+    const text = `${s.id} ${s.title} ${s.codeLine} ${s.changed} ${s.say} ${s.ask}`.toLowerCase();
+    if (mode === 'important' && !s.important) return false;
+    if (idRaw && s.id !== id) return false;
+    if (q && !text.includes(q)) return false;
+    return true;
+  });
+
+  document.getElementById('cards').innerHTML = visible.map(s => `
+    <article class="card ${s.important ? 'important' : ''}">
+      <div class="top">
+        <div class="id">${s.id}</div>
+        <div class="title">Passo ${s.n}: ${s.title}</div>
+        ${s.important ? '<div class="tag">PAUSA</div>' : ''}
+      </div>
+      <div class="body">
+        <div class="block">
+          <div class="label">Codigo que aparece na tela</div>
+          <div class="text code">${s.codeLine}</div>
+        </div>
+        <div class="block">
+          <div class="label">O que mudou</div>
+          <div class="text">${s.changed}</div>
+        </div>
+        <div class="block say">
+          <div class="label">Fale isso agora</div>
+          <div class="text">${s.say}</div>
+        </div>
+        <div class="block ask">
+          <div class="label">Se o professor perguntar</div>
+          <div class="text">${s.ask}</div>
+        </div>
+      </div>
+    </article>
+  `).join('');
+  document.getElementById('empty').style.display = visible.length ? 'none' : 'block';
+}
+
+document.getElementById('stepFilter').addEventListener('input', render);
+document.getElementById('search').addEventListener('input', render);
+document.getElementById('mode').addEventListener('change', render);
+render();
+</script>
+</body>
+</html>
